@@ -16,6 +16,16 @@ select
 	
 ----CHILDREN: dob, active, created date, prenatal
 	, c.number_of_children
+	, c.children_prenatal_when_joined
+	, c.children_under_1_when_joined
+	, c.children_1_when_joined
+	, c.children_2_when_joined
+	, c.children_3_when_joined
+	, c.children_4_when_joined
+	, c.children_5_when_joined
+	, c.children_6_when_joined
+	, c.children_7_when_joined
+	, c.children_8_when_joined
 	
 ----PARTNERS
 	, p.name as partner_name
@@ -41,6 +51,9 @@ select
 		   when m.messages > 500
 		   	then '500+'
 	  end as messages_category
+	--, messages_in_first_30_days
+	--, messages_in_first_90_days
+	--, messages_in_first_180_days
 
 ----**fields unsure about:
 	--s.external_id
@@ -71,7 +84,17 @@ on sdr.id = s.deactivation_reason_id
 left join (
 	select subscriber_id
 		 , count(distinct id) as number_of_children
-		 --, case when (cast(date_of_birth as date) - cast(created_at as date)) <= 365 then count(distinct id) end as children_under_1_when_joined
+		 --trying to understand if the age of the child when parent joined affects BBT impact
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) <    0 then 1 end) as children_prenatal_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) <  365 then 1 end) as children_under_1_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) <  730 then 1 end) as children_1_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 1095 then 1 end) as children_2_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 1460 then 1 end) as children_3_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 1825 then 1 end) as children_4_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 2190 then 1 end) as children_5_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 2555 then 1 end) as children_6_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 2920 then 1 end) as children_7_when_joined
+		 , sum(case when (cast(created_at as date) - cast(date_of_birth as date)) < 3285 then 1 end) as children_8_when_joined
 	from public.children
 	group by subscriber_id, date_of_birth, created_at
 	) as c 
@@ -91,10 +114,12 @@ on p_state.id = p.state_id
 left join (
 	select m.subscriber_id
 	     , count(distinct m.message_id) as messages
-		 --, case when (cast(s.created_at as date) - cast(m.created_at as date)) <= 30 then count(distinct message_id) end as messages_in_first_30_days
+		 --, sum(case when (cast(s.created_at as date) - cast(m.created_at as date)) <= 30 then 1 end) as messages_in_first_30_days
 		 --, case when datediff('day', s.created_at - m.created_at) <= 90 then count(distinct message_id) end as messages_in_first_90_days
 		 --, case when datediff('day', s.created_at - m.created_at) <= 180 then count(distinct message_id) end as messages_in_first_180_days
 	from archive.outbound_messages as m
-	group by subscriber_id
+	left join public.v_subscribers as s
+	on s.id = m.subscriber_id
+	group by m.subscriber_id, s.created_at, m.created_at
 	)as m 
 on m.subscriber_id = s.id
